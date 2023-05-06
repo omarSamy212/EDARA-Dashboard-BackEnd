@@ -1,8 +1,20 @@
 // API ENDPOINTS (CRUD OPERATIONS)
 
 const router = require("express").Router();
-// import User and Warehouse tables to execute CRUD operations
-const { Warehouse, User } = require("../models");
+// import User table to implement auth
+const { User, Warehouse } = require("../models");
+//import middleware validator
+const {
+  isEmail,
+  isPassword,
+  isUsername,
+} = require("../middlewares/auth-validation");
+//
+const { validationResult } = require("express-validator");
+//
+const bcrypt = require("bcrypt");
+//
+const jwt = require("jsonwebtoken");
 
 // Get all users
 router.get("/", async (req, res) => {
@@ -46,39 +58,39 @@ router.post("/", async (req, res) => {
 // });
 
 // Update specific user
-router.put("/:id", async (req, res) => {
-  const { id } = req.params;
-  const data = req.body;
-  const user = await User.findOne({
-    where: { id: id },
-  });
-  if (user === null) {
-    res.status(404);
-    res.json({
-      message: "User not found",
-    });
-  } else {
-    try {
-      await User.update(
-        { username: data.username },
-        {
-          where: {
-            id: id,
-          },
-        }
-      );
-      res.status(200);
-      res.json({
-        message: "User record is Updated",
-      });
-    } catch (err) {
-      res.status(400);
-      res.json({
-        message: err.message,
-      });
-    }
-  }
-});
+// router.put("/:id", async (req, res) => {
+//   const { id } = req.params;
+//   const data = req.body;
+//   const user = await User.findOne({
+//     where: { id: id },
+//   });
+//   if (user === null) {
+//     res.status(404);
+//     res.json({
+//       message: "User not found",
+//     });
+//   } else {
+//     try {
+//       await User.update(
+//         { username: data.username },
+//         {
+//           where: {
+//             id: id,
+//           },
+//         }
+//       );
+//       res.status(200);
+//       res.json({
+//         message: "User record is Updated",
+//       });
+//     } catch (err) {
+//       res.status(400);
+//       res.json({
+//         message: err.message,
+//       });
+//     }
+//   }
+// });
 
 // Delete specific user
 router.delete("/:id", async (req, res) => {
@@ -134,7 +146,7 @@ router.get("/sp-wh", async (req, res) => {
   try {
     const users = await User.findAll({
       where: { userType: "supervisor" }, // Filter users with userType = "supervisor"
-      attributes: ["id", "username", "email"],
+      attributes: ["id", "username", "email", "userType"],
       include: [
         {
           model: Warehouse,
@@ -177,6 +189,98 @@ router.post("/add-supervisor-to-warehouse/:id", async (req, res) => {
     }
   }
 });
+
+// Delete specific user by id
+router.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+  const user = await User.findOne({ where: { id } });
+  if (user === null) {
+    res.status(404);
+    res.json({ message: "User not found." });
+  } else {
+    try {
+      await User.destroy({ where: { id } });
+      res.status(200);
+      res.json({ message: "User deleted." });
+    } catch (err) {
+      res.status(400);
+      res.json({ message: `Error deleting user >> ${err}` });
+      console.log(err);
+    }
+  }
+});
+
+//get a specific user along with all warehouses (update user operation)
+router.get("/upsp/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findByPk(id);
+    const warehouses = await Warehouse.findAll();
+
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+    } else {
+      res.status(200).json({ user: user, warehouses: warehouses });
+    }
+  } catch (err) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// Update specific user
+
+router.put("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = req.body;
+
+    const user = await User.findOne({
+      where: { id: id },
+    });
+    if (user === null) {
+      res.status(404);
+      return res.json({ message: "User not found" });
+    }
+
+    if (data.email && data.email !== user.email) {
+      const existingUser = await User.findOne({
+        where: { email: data.email },
+      });
+      if (existingUser !== null) {
+        res.status(400);
+        return res.json({ message: "Email already exists" });
+      }
+    }
+
+    if (data.password) {
+      const saltRounds = 10;
+      const hashedPass = await bcrypt.hash(data.password, saltRounds);
+      data.password = hashedPass;
+    }
+
+    await User.update(data, {
+      where: { id: id },
+    });
+
+    if (data.warehouseId) {
+      const warehouse = await Warehouse.findByPk(data.warehouseId);
+      if (!warehouse) {
+        res.status(400);
+        return res.json({ message: "Warehouse not found" });
+      }
+      await user.setWarehouses([warehouse]);
+    }
+
+    res.status(200);
+    res.json({ message: "User updated successfully" });
+  } catch (err) {
+    res.status(400);
+    res.json({ message: "There was a problem updating the user" });
+    console.log(err);
+  }
+});
+
 
 // Add new student to a new department
 
