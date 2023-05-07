@@ -5,11 +5,13 @@ const router = require("express").Router();
 const { Warehouse, Product } = require("../models");
 
 // Get all products
-router.get("/", async (req, res) => {
-  const product = await Product.findAll({ attributes: ["id", "name", "quantity"] });
-  res.status(200);
-  res.json(product);
-});
+// router.get("/", async (req, res) => {
+//   const product = await Product.findAll({
+//     attributes: ["id", "name", "quantity"],
+//   });
+//   res.status(200);
+//   res.json(product);
+// });
 
 // Post new product
 router.post("/", async (req, res) => {
@@ -25,31 +27,54 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Get specific product
-router.get("/:id", async (req, res) => {
+// fetch all products within a specific warehouse
+router.get("/wh-p/:id", async (req, res) => {
   const { id } = req.params;
 
-  const product = await Product.findOne({
-    where: { id: id },
-    attributes: ["id", "name", "quantity"],
-  });
-  if (product === null) {
-    res.status(404);
-    res.json({
-      message: "product not found",
+  try {
+    const products = await Product.findAll({
+      where: { warehouseId: id },
+      attributes: ["id", "name", "quantity","imageUrl"],
     });
-  } else {
-    res.status(200);
-    res.json(product);
+    console.log(products);
+    if (products.length === 0) {
+      
+      res.status(404).json({ message: "No products found for the warehouse" });
+      
+    } else {
+      res.status(200).json(products);
+    }
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+    console.error(error);
   }
 });
+
+// Get specific product
+// router.get("/:id", async (req, res) => {
+//   const { id } = req.params;
+
+//   const product = await Product.findOne({
+//     where: { id: id },
+//     attributes: ["id", "name", "quantity"],
+//   });
+//   if (product === null) {
+//     res.status(404);
+//     res.json({
+//       message: "product not found",
+//     });
+//   } else {
+//     res.status(200);
+//     res.json(product);
+//   }
+// });
 
 // Update specific product
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
   const data = req.body;
   const product = await Product.findOne({
-    where: { id: id, },
+    where: { id: id },
   });
   if (product === null) {
     res.status(404);
@@ -59,7 +84,7 @@ router.put("/:id", async (req, res) => {
   } else {
     try {
       await Product.update(
-        { name: data.name,quantity: data.quantity },
+        { name: data.name, quantity: data.quantity },
         {
           where: {
             id: id,
@@ -91,20 +116,17 @@ router.delete("/:id", async (req, res) => {
       message: "Product not found",
     });
   } else {
-    await Product.destroy(
-      {
-        where: {
-          id: id,
-        },
-      }
-    );
+    await Product.destroy({
+      where: {
+        id: id,
+      },
+    });
     res.status(200);
     res.json({
       message: "Product is Deleted",
     });
   }
 });
-
 
 // Add new product to specific warehouse
 
@@ -117,7 +139,6 @@ router.post("/add-product-to-warehouse/:id", async (req, res) => {
     res.json({ message: "Warehouse not found" });
   } else {
     try {
-
       const prod = await wh.createProduct(data);
       res.status(201);
       res.json({
@@ -133,8 +154,6 @@ router.post("/add-product-to-warehouse/:id", async (req, res) => {
     }
   }
 });
-
-
 
 // export
 module.exports = router;

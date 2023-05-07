@@ -44,16 +44,18 @@ router.post("/register", isUsername, isPassword, isEmail, async (req, res) => {
     const newUser = await User.create(data);
 
     // add user to warehouse
-    const warehouseId = data.warehouseId;
-    const warehouse = await Warehouse.findByPk(warehouseId);
-    if (!warehouse) {
-      res.status(400);
-      return res.json({ message: "warehouse not found" });
-    }
-    await newUser.addWarehouse(warehouse);
+if (data.warehouseId) {
+  const warehouseId = data.warehouseId;
+  const warehouse = await Warehouse.findByPk(warehouseId);
+  if (!warehouse) {
+    res.status(400);
+    return res.json({ message: "warehouse not found" });
+  }
+  await newUser.addWarehouse(warehouse);
+}
 
-    res.status(201);
-    res.json({ message: "user created success" });
+res.status(201);
+res.json({ message: "user created success" });
   } catch (err) {
     res.status(400);
     res.json({ message: "there is a problem" });

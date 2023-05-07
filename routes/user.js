@@ -15,6 +15,7 @@ const { validationResult } = require("express-validator");
 const bcrypt = require("bcrypt");
 //
 const jwt = require("jsonwebtoken");
+const { Op } = require("sequelize");
 
 // Get all users
 router.get("/", async (req, res) => {
@@ -145,23 +146,35 @@ router.get("/warehouse-info/:id", async (req, res) => {
 router.get("/sp-wh", async (req, res) => {
   try {
     const users = await User.findAll({
-      where: { userType: "supervisor" }, // Filter users with userType = "supervisor"
+      where: { userType: "supervisor" },
       attributes: ["id", "username", "email", "userType"],
       include: [
         {
           model: Warehouse,
           attributes: ["name"],
-          through: { attributes: [] }, // Exclude join table attributes from the result
+          through: { attributes: [] },
         },
       ],
     });
 
-    res.status(200).json(users);
+    // Map through the users and check if they have an associated warehouse
+    const usersWithWarehouse = users.map((user) => {
+      const warehouses = user.Warehouses || []; // Handle undefined user.Warehouses
+      if (warehouses.length === 0) {
+        return { ...user.toJSON(), warehouse: "Unassigned" };
+      } else {
+        return user;
+      }
+    });
+
+    res.status(200).json(usersWithWarehouse);
   } catch (error) {
     res.status(500).json({ message: "Internal server error" });
     console.error(error);
   }
 });
+
+
 
 // Add new user to specific warehouse
 
@@ -238,16 +251,16 @@ router.put("/:id", async (req, res) => {
     const user = await User.findOne({
       where: { id: id },
     });
-    if (user === null) {
+    if (!user) {
       res.status(404);
       return res.json({ message: "User not found" });
     }
 
     if (data.email && data.email !== user.email) {
       const existingUser = await User.findOne({
-        where: { email: data.email },
+        where: { email: data.email, id: { [Op.ne]: user.id } },
       });
-      if (existingUser !== null) {
+      if (existingUser) {
         res.status(400);
         return res.json({ message: "Email already exists" });
       }
@@ -270,6 +283,8 @@ router.put("/:id", async (req, res) => {
         return res.json({ message: "Warehouse not found" });
       }
       await user.setWarehouses([warehouse]);
+    } else {
+      await user.setWarehouses([]); // Disassociate user from any existing warehouses
     }
 
     res.status(200);

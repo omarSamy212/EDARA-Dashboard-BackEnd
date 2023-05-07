@@ -1,5 +1,5 @@
 const router = require("express").Router();
-const { Warehouse } = require("../models");
+const { Warehouse, User } = require("../models");
 
 
 // Get all warehouses
@@ -60,21 +60,29 @@ router.put("/:id", async (req, res) => {
 // Delete specific warehouse by id
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
-  const warehouse = await Warehouse.findOne({ where: { id } });
-  if (warehouse === null) {
-    res.status(404);
-    res.json({ message: "Warehouse not found." });
-  } else {
-    try {
-      await Warehouse.destroy({ where: { id } });
-      res.status(200);
-      res.json({ message: "Warehouse deleted." });
-    } catch (err) {
-      res.status(400);
-      res.json({ message: "Error deleting warehouse." });
-      console.log(err);
+  
+  try {
+    // Find the warehouse
+    const warehouse = await Warehouse.findOne({ where: { id } });
+    if (!warehouse) {
+      res.status(404).json({ message: "Warehouse not found." });
+      return;
     }
+
+    // Remove the warehouse's associations with users
+    await warehouse.removeUsers();
+
+    // Delete the warehouse
+    await Warehouse.destroy({ where: { id } });
+
+    res.status(200).json({ message: "Warehouse deleted." });
+  } catch (err) {
+    res.status(400).json({ message: "Error deleting warehouse." });
+    console.log(err);
   }
 });
+
+
+
 
 module.exports = router;
