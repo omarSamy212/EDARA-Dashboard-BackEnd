@@ -1,4 +1,5 @@
 const router = require("express").Router();
+const db = require("../config/database");
 // import User table to implement auth
 const { User, Warehouse } = require("../models");
 //import middleware validator
@@ -102,10 +103,27 @@ router.post("/login", isPassword, isEmail, async (req, res) => {
       return res.json({ message: "Wrong password" });
     }
 
+    let warehouseId = -1; // Default value if not associated with a warehouse
+
+    if (user.userType === "supervisor") {
+      const userWarehouse = await db.query(
+        "SELECT warehouseId FROM userwarehouse WHERE userId = :userId",
+        {
+          replacements: { userId: user.id },
+          type: db.QueryTypes.SELECT,
+        }
+      );
+
+      if (userWarehouse && userWarehouse.length > 0) {
+        warehouseId = userWarehouse[0].warehouseId;
+      }
+    }
     const token = generateAccessToken({
+      id: user.id,
       name: user.username,
       email: user.email,
       userType: user.userType,
+      warehouseId: warehouseId,
     });
 
     res.status(200);
@@ -120,5 +138,6 @@ router.post("/login", isPassword, isEmail, async (req, res) => {
 const generateAccessToken = (userData) => {
   return jwt.sign(userData, process.env.TOKEN_SECRET, { expiresIn: "1800s" });
 };
+
 
 module.exports = router;
